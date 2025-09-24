@@ -4,44 +4,173 @@ import os
 from flask import Flask, render_template, request, jsonify, redirect, url_for, session, g
 
 # ------------------- 配置 -------------------
-# 重要提示: 为了您的数据安全，请务必修改下面的 ADMIN_PASSWORD 变量的值！
 ADMIN_USERNAME = 'admin'
-ADMIN_PASSWORD = 'password123' 
+ADMIN_PASSWORD = 'password123'
 
-# 将数据库文件放在一个可持久化的目录中
-# Render 会将这个 'data' 目录挂载到持久磁盘上
 DATA_DIR = 'data'
 DATABASE_FILE = os.path.join(DATA_DIR, 'database.db')
 
-SECRET_KEY = 'your_very_secret_key_change_it' # 用于 session 加密，请修改为随机字符串
+SECRET_KEY = 'your_very_secret_key_change_it_for_security'
 
-# 简单多语言配置：默认英文，可切换到阿拉伯语
+# 多语言配置
 SUPPORTED_LANGS = {'en', 'ar'}
 DEFAULT_LANG = 'en'
 TRANSLATIONS = {
     'en': {
+        # General
         'app_title': 'Queue System',
         'switch_to_en': 'English',
-        'switch_to_ar': 'Arabic',
-        'login_error': 'Incorrect username or password',
+        'switch_to_ar': 'العربية',
         'unauthorized': 'Unauthorized',
-        'invalid_party_size': 'Please enter a valid party size',
+        'request_failed': 'Request failed. Please try again.',
+        'op_failed_try_again': 'Operation failed. Please try again.',
+
+        # Customer Page
+        'welcome': 'Welcome',
+        'smart_queue': 'Get your ticket for our smart queue system.',
+        'current_queue': 'Current Queue Status',
+        'now_calling': 'Now Calling',
+        'waiting_tables': 'Waiting',
+        'my_queue_info': 'My Queue Information',
+        'your_number': 'Your Number:',
+        'status': 'Status',
+        'clear_my_number': 'Cancel My Ticket',
+        'enter_party_size': 'How many people in your party?',
+        'party_size_placeholder': 'e.g., 4',
+        'take_ticket_now': 'Get Ticket',
+        'ticket_processed_or_invalid': 'Your ticket has been processed or is invalid.',
+        'status_waiting': 'Waiting',
+        'status_called': 'Please Proceed',
+        'tables_ahead': 'tables ahead of you.',
+        'invalid_party_size': 'Please enter a valid party size (a positive number).',
+        'taking_ticket': 'Getting ticket...',
         'ticket_success': 'Ticket issued successfully. Your number is {n}.',
-        'invalid_status': 'Invalid status',
-        'status_updated': 'Ticket {id} status updated to {status}',
-        'queue_reset': 'Queue has been reset',
+
+        # Admin Page
+        'admin_title': 'Admin Dashboard',
+        'admin_login': 'Admin Login',
+        'admin_welcome': 'Welcome back! Please manage the queue.',
+        'username': 'Username',
+        'password': 'Password',
+        'login': 'Login',
+        'login_error': 'Incorrect username or password.',
+        'dashboard': 'Dashboard',
+        'realtime_manage': 'Manage your customer queue in real-time.',
+        'reset_queue': 'Reset Queue',
+        'reset_queue_confirm': 'Are you sure you want to delete all tickets and reset the queue?',
+        'logout': 'Logout',
+        'queue_list': 'Queue List',
+        'ticket_no': 'Ticket No.',
+        'party_size': 'Size',
+        'status_col': 'Status',
+        'actions': 'Actions',
+        'loading_data': 'Loading data...',
+        'load_failed': 'Failed to load queue data.',
+        'no_customers': 'No customers in the queue yet.',
+        'waiting_count': 'Currently Waiting',
+        'tables': 'Tables',
+        'scan_to_join': 'Scan to Join Queue',
+        'scan_tip': 'Customers can scan this QR code to get a ticket.',
+        'qr_alt': 'QR Code to join queue',
+        'waiting_badge': 'Waiting',
+        'called_badge': 'Called',
+        'call': 'Call',
+        'seat': 'Seat',
+        'requeue': 'Re-Queue',
+        'cancel_action': 'Cancel',
+        'settings': 'Store Settings',
+        'settings_desc': 'Customize public information for your store.',
+        'restaurant_name': 'Restaurant Name',
+        'welcome_message': 'Welcome Message (Customer Page)',
+        'display_header_message': 'Header Message (Display Screen)',
+        'save_settings': 'Save Settings',
+        'settings_saved': 'Settings saved successfully!',
+
+        # Display Page
+        'display_title': 'Queue Display',
+        'display_header': 'Welcome',
+        'no_calls': 'No numbers are being called currently.',
+        'up_next': 'Up Next',
+        'none_waiting': 'No one is waiting.',
+        'guests': 'guests',
     },
     'ar': {
-        'app_title': 'نظام الدور',
-        'switch_to_en': 'الإنجليزية',
+        # General
+        'app_title': 'نظام الطابور',
+        'switch_to_en': 'English',
         'switch_to_ar': 'العربية',
-        'login_error': 'اسم المستخدم أو كلمة المرور غير صحيحة',
         'unauthorized': 'غير مصرح',
-        'invalid_party_size': 'يرجى إدخال عدد أشخاص صالح',
-        'ticket_success': 'تم إصدار التذكرة بنجاح. رقمك هو {n}.',
-        'invalid_status': 'حالة غير صالحة',
-        'status_updated': 'تم تحديث حالة التذكرة {id} إلى {status}',
-        'queue_reset': 'تمت إعادة تعيين قائمة الانتظار',
+        'request_failed': 'فشل الطلب. الرجاء المحاولة مرة أخرى.',
+        'op_failed_try_again': 'فشلت العملية. الرجاء المحاولة مرة أخرى.',
+
+        # Customer Page
+        'welcome': 'أهلاً وسهلاً',
+        'smart_queue': 'احصل على رقمك الآن عبر نظامنا الذكي.',
+        'current_queue': 'حالة الطابور الحالية',
+        'now_calling': 'جاري النداء',
+        'waiting_tables': 'في الانتظار',
+        'my_queue_info': 'معلومات رقمي',
+        'your_number': 'رقمك هو:',
+        'status': 'الحالة',
+        'clear_my_number': 'إلغاء رقمي',
+        'enter_party_size': 'كم عدد أفراد مجموعتك؟',
+        'party_size_placeholder': 'مثال: 4',
+        'take_ticket_now': 'احصل على رقم',
+        'ticket_processed_or_invalid': 'لقد تمت معالجة رقمك أو أنه غير صالح.',
+        'status_waiting': 'في الانتظار',
+        'status_called': 'يرجى التوجه للداخل',
+        'tables_ahead': 'طاولة أمامك.',
+        'invalid_party_size': 'الرجاء إدخال عدد صحيح وصالح للأشخاص.',
+        'taking_ticket': 'جاري الحصول على رقم...',
+        'ticket_success': 'تم إصدار الرقم بنجاح. رقمك هو {n}.',
+
+        # Admin Page
+        'admin_title': 'لوحة تحكم المسؤول',
+        'admin_login': 'تسجيل دخول المسؤول',
+        'admin_welcome': 'أهلاً بعودتك! يرجى إدارة طابور الانتظار.',
+        'username': 'اسم المستخدم',
+        'password': 'كلمة المرور',
+        'login': 'تسجيل الدخول',
+        'login_error': 'اسم المستخدم أو كلمة المرور غير صحيحة.',
+        'dashboard': 'لوحة التحكم',
+        'realtime_manage': 'إدارة طابور العملاء في الوقت الفعلي.',
+        'reset_queue': 'إعادة تعيين الطابور',
+        'reset_queue_confirm': 'هل أنت متأكد أنك تريد حذف جميع الأرقام وإعادة تعيين الطابور؟',
+        'logout': 'تسجيل الخروج',
+        'queue_list': 'قائمة الانتظار',
+        'ticket_no': 'رقم التذكرة',
+        'party_size': 'العدد',
+        'status_col': 'الحالة',
+        'actions': 'الإجراءات',
+        'loading_data': 'جاري تحميل البيانات...',
+        'load_failed': 'فشل تحميل بيانات الطابور.',
+        'no_customers': 'لا يوجد عملاء في الطابور بعد.',
+        'waiting_count': 'عدد المنتظرين حالياً',
+        'tables': 'طاولات',
+        'scan_to_join': 'امسح للانضمام للطابور',
+        'scan_tip': 'يمكن للعملاء مسح هذا الرمز للحصول على رقم.',
+        'qr_alt': 'رمز QR للانضمام للطابور',
+        'waiting_badge': 'منتظر',
+        'called_badge': 'تم النداء',
+        'call': 'نداء',
+        'seat': 'إجلاس',
+        'requeue': 'إعادة انتظار',
+        'cancel_action': 'إلغاء',
+        'settings': 'إعدادات المتجر',
+        'settings_desc': 'تخصيص المعلومات العامة لمتجرك.',
+        'restaurant_name': 'اسم المطعم',
+        'welcome_message': 'رسالة الترحيب (صفحة العملاء)',
+        'display_header_message': 'رسالة الرأس (شاشة العرض)',
+        'save_settings': 'حفظ الإعدادات',
+        'settings_saved': 'تم حفظ الإعدادات بنجاح!',
+
+        # Display Page
+        'display_title': 'شاشة العرض',
+        'display_header': 'أهلاً وسهلاً',
+        'no_calls': 'لا يتم نداء أي أرقام حاليًا.',
+        'up_next': 'التالي',
+        'none_waiting': 'لا يوجد أحد في الانتظار.',
+        'guests': 'أشخاص',
     }
 }
 
@@ -49,18 +178,16 @@ TRANSLATIONS = {
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
 
-# 哈希密码以增加安全性
 PASSWORD_HASH = hashlib.sha256(ADMIN_PASSWORD.encode('utf-8')).hexdigest()
 
+
 def get_db_connection():
-    """创建并返回数据库连接"""
     conn = sqlite3.connect(DATABASE_FILE)
     conn.row_factory = sqlite3.Row
     return conn
 
+
 def init_db():
-    """初始化数据库，创建表结构"""
-    # 确保 data 目录存在
     os.makedirs(DATA_DIR, exist_ok=True)
     with app.app_context():
         conn = get_db_connection()
@@ -70,121 +197,132 @@ def init_db():
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 ticket_number INTEGER NOT NULL,
                 party_size INTEGER NOT NULL,
-                status TEXT NOT NULL DEFAULT 'waiting', -- 'waiting', 'called', 'seated', 'cancelled'
+                status TEXT NOT NULL DEFAULT 'waiting',
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        ''')
+        # 检查并插入默认设置
+        default_settings = {
+            'restaurant_name': 'My Restaurant',
+            'welcome_message': 'Smart Queue System',
+            'display_header_message': 'Welcome'
+        }
+        for key, value in default_settings.items():
+            cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (key, value))
+
         conn.commit()
         conn.close()
 
-# !!! 关键改动: 在应用启动时就初始化数据库 !!!
+
 init_db()
 
+
+# ------------------- 国际化 & 上下文 -------------------
+
 def _get_lang_from_request():
-    # 优先 URL 查询参数 ?lang=xx，其次 session，最后默认
     q = request.args.get('lang', '').lower().strip()
-    if q in SUPPORTED_LANGS:
-        return q
+    if q in SUPPORTED_LANGS: return q
     s = session.get('lang')
-    if s in SUPPORTED_LANGS:
-        return s
+    if s in SUPPORTED_LANGS: return s
     return DEFAULT_LANG
 
+
 @app.before_request
-def _set_lang():
-    # 将语言和方向注入到 g
+def _set_lang_and_settings():
     lang = _get_lang_from_request()
     session['lang'] = lang
     g.lang = lang
     g.dir = 'rtl' if lang == 'ar' else 'ltr'
 
-@app.context_processor
-def _inject_i18n():
+    # !!! 关键改动：在这里定义 t 函数并附加到 g 对象 !!!
     def t(key, **kwargs):
-        lang = getattr(g, 'lang', DEFAULT_LANG)
+        lang = g.lang
         txt = TRANSLATIONS.get(lang, {}).get(key, TRANSLATIONS[DEFAULT_LANG].get(key, key))
-        if kwargs:
-            try:
-                return txt.format(**kwargs)
-            except Exception:
-                return txt
-        return txt
+        return txt.format(**kwargs) if kwargs else txt
 
+    g.t = t
+
+    # 获取并注入设置
+    conn = get_db_connection()
+    settings_data = conn.execute('SELECT key, value FROM settings').fetchall()
+    conn.close()
+    g.settings = {row['key']: row['value'] for row in settings_data}
+
+
+@app.context_processor
+def _inject_i18n_and_settings():
+    # 这个函数现在只负责向模板注入变量
     def switch_lang_url(lang_code):
-        # 构造当前路径的语言切换 URL（通过查询参数）
         from urllib.parse import urlencode
         args = request.args.to_dict(flat=True)
         args['lang'] = lang_code
         return f"{request.path}?{urlencode(args)}"
 
     return dict(
-        t=t,
+        t=getattr(g, 't', lambda key, **kwargs: key),  # 从 g 对象获取 t 函数
         lang=getattr(g, 'lang', DEFAULT_LANG),
         dir=getattr(g, 'dir', 'ltr'),
         switch_lang_url=switch_lang_url,
-        SUPPORTED_LANGS=SUPPORTED_LANGS
+        settings=getattr(g, 'settings', {})
     )
 
-@app.route('/set_lang/<lang_code>')
-def set_lang(lang_code):
-    # 可选：通过独立路由设置语言并跳回来源页
-    lang_code = (lang_code or '').lower()
-    if lang_code in SUPPORTED_LANGS:
-        session['lang'] = lang_code
-    ref = request.headers.get('Referer') or url_for('customer_page')
-    return redirect(ref)
 
+# ------------------- API 路由 -------------------
 
 @app.route('/api/queue')
 def get_queue_status():
-    """获取当前整个排队列表的状态"""
     conn = get_db_connection()
-    queue_data = conn.execute('SELECT * FROM queue ORDER BY ticket_number ASC').fetchall()
+    queue_data = conn.execute('SELECT * FROM queue ORDER BY timestamp ASC').fetchall()
     conn.close()
-    
+
     waiting_list = [dict(row) for row in queue_data if row['status'] == 'waiting']
     called_list = [dict(row) for row in queue_data if row['status'] == 'called']
-    
+
     return jsonify({
         'waiting': waiting_list,
         'called': called_list,
         'total_waiting': len(waiting_list)
     })
 
+
 @app.route('/api/take_ticket', methods=['POST'])
 def take_ticket():
-    """顾客取号"""
     data = request.get_json()
     party_size = data.get('party_size')
 
     if not party_size or not str(party_size).isdigit() or int(party_size) <= 0:
-        return jsonify({'success': False, 'message': 'Please enter a valid party size'}), 400
+        return jsonify({'success': False, 'message': g.t('invalid_party_size')}), 400
 
     conn = get_db_connection()
-    # 查找当前最大的票号
     last_ticket = conn.execute('SELECT MAX(ticket_number) as max_ticket FROM queue').fetchone()
     new_ticket_number = (last_ticket['max_ticket'] or 0) + 1
-    
-    conn.execute('INSERT INTO queue (ticket_number, party_size) VALUES (?, ?)', 
+
+    conn.execute('INSERT INTO queue (ticket_number, party_size) VALUES (?, ?)',
                  (new_ticket_number, party_size))
     conn.commit()
     conn.close()
-    
+
     return jsonify({
-        'success': True, 
+        'success': True,
         'ticket_number': new_ticket_number,
-        'message': f'Ticket issued successfully. Your number is {new_ticket_number}.'
+        'message': g.t('ticket_success', n=new_ticket_number)
     })
+
 
 @app.route('/api/update_status/<int:ticket_id>', methods=['POST'])
 def update_ticket_status(ticket_id):
-    """商家更新票号状态 (叫号、入座、取消)"""
     if 'logged_in' not in session:
-        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
-        
+        return jsonify({'success': False, 'message': g.t('unauthorized')}), 401
+
     data = request.get_json()
     new_status = data.get('status')
-    
+
     if new_status not in ['called', 'seated', 'cancelled', 'waiting']:
         return jsonify({'success': False, 'message': 'Invalid status'}), 400
 
@@ -192,66 +330,83 @@ def update_ticket_status(ticket_id):
     conn.execute('UPDATE queue SET status = ? WHERE id = ?', (new_status, ticket_id))
     conn.commit()
     conn.close()
-    
-    return jsonify({'success': True, 'message': f'Ticket {ticket_id} status updated to {new_status}'})
-    
+
+    return jsonify({'success': True, 'message': f'Ticket {ticket_id} status updated'})
+
+
 @app.route('/api/reset_queue', methods=['POST'])
 def reset_queue():
-    """商家重置清空整个队列"""
     if 'logged_in' not in session:
-        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
-    
+        return jsonify({'success': False, 'message': g.t('unauthorized')}), 401
+
     conn = get_db_connection()
     conn.execute('DELETE FROM queue')
+    conn.execute("UPDATE sqlite_sequence SET seq = 0 WHERE name = 'queue'")
     conn.commit()
     conn.close()
-    
+
     return jsonify({'success': True, 'message': 'Queue has been reset'})
+
+
+@app.route('/api/settings', methods=['POST'])
+def update_settings():
+    """管理员更新设置"""
+    if 'logged_in' not in session:
+        return jsonify({'success': False, 'message': g.t('unauthorized')}), 401
+
+    data = request.get_json()
+    allowed_keys = ['restaurant_name', 'welcome_message', 'display_header_message']
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    for key, value in data.items():
+        if key in allowed_keys:
+            cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
+    conn.commit()
+    conn.close()
+
+    return jsonify({'success': True, 'message': g.t('settings_saved')})
+
 
 # ------------------- 页面路由 -------------------
 @app.route('/')
 def customer_page():
-    """顾客端页面"""
     return render_template('customer.html')
+
 
 @app.route('/display')
 def display_page():
-    """大屏展示页面"""
     return render_template('display.html')
+
 
 @app.route('/admin', methods=['GET', 'POST'])
 def admin_page():
-    """商家管理端页面及登录处理"""
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
-        
+
         hashed_password_attempt = hashlib.sha256(password.encode('utf-8')).hexdigest()
-        
+
         if username == ADMIN_USERNAME and hashed_password_attempt == PASSWORD_HASH:
             session['logged_in'] = True
             return redirect(url_for('admin_page'))
         else:
-            return render_template('admin.html', error='Incorrect username or password')
-            
+            return render_template('admin.html', error=g.t('login_error'), logged_in=False)
+
     if 'logged_in' in session:
-        # 获取当前服务器地址用于生成二维码
         host_url = request.host_url
         return render_template('admin.html', logged_in=True, host_url=host_url)
-        
+
     return render_template('admin.html', logged_in=False)
+
 
 @app.route('/logout')
 def logout():
-    """登出"""
     session.pop('logged_in', None)
     return redirect(url_for('admin_page'))
 
+
 # ------------------- 启动程序 -------------------
 if __name__ == '__main__':
-    # 本地开发时，仍然使用 Flask 自带的服务器
-    print("Flask app is running for local development. Access points:")
-    print(f"  - Customer: http://127.0.0.1:5090/")
-    print(f"  - Admin:    http://127.0.0.1:5090/admin")
-    print(f"  - Display:  http://127.0.0.1:5090/display")
-    app.run(debug=True, host='0.0.0.0', port=5090)
+    app.run(debug=True, host='0.0.0.0', port=5091)
+

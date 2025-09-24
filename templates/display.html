@@ -3,52 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ t('display_title') }}</title>
+    <title>{{ settings.restaurant_name }} - {{ t('display_title') }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@700;900&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@700;900&family=Cairo:wght@700;900&display=swap" rel="stylesheet">
     <style>
+        html[lang="en"] body { font-family: 'Poppins', sans-serif; }
+        html[lang="ar"] body { font-family: 'Cairo', sans-serif; }
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: #0c0a09;
-            color: #f8fafc;
+            background: linear-gradient(to bottom right, #111827, #1f2937);
+            color: #f9fafb;
             overflow: hidden;
             cursor: none;
         }
         .display-card {
-            background-color: #1c1917;
-            border: 1px solid #44403c;
+            background-color: rgba(31, 41, 55, 0.5);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
         @keyframes pulse-intense {
-          0%, 100% { transform: scale(1); opacity: 1; }
-          50% { transform: scale(1.05); opacity: 0.9; }
+          0%, 100% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+          50% { transform: scale(1.03); opacity: 0.95; box-shadow: 0 0 20px 10px rgba(34, 197, 94, 0.1); }
         }
         .animate-pulse-intense { animation: pulse-intense 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
     </style>
 </head>
 <body class="flex items-center justify-center min-h-screen">
-    <div class="absolute top-4 {{ 'left-4' if dir == 'ltr' else 'right-4' }} flex gap-3">
-        <a href="{{ switch_lang_url('en') }}" class="px-3 py-1 text-sm bg-gray-700 rounded">{{ t('switch_to_en') }}</a>
-        <a href="{{ switch_lang_url('ar') }}" class="px-3 py-1 text-sm bg-gray-700 rounded">{{ t('switch_to_ar') }}</a>
+    <div class="absolute top-4 {{ 'left-4' if dir == 'ltr' else 'right-4' }} flex gap-3 z-10">
+        <a href="{{ switch_lang_url('en') }}" class="px-3 py-1 text-sm bg-gray-800/50 backdrop-blur-sm rounded-full hover:bg-gray-700 transition">{{ t('switch_to_en') }}</a>
+        <a href="{{ switch_lang_url('ar') }}" class="px-3 py-1 text-sm bg-gray-800/50 backdrop-blur-sm rounded-full hover:bg-gray-700 transition">{{ t('switch_to_ar') }}</a>
     </div>
 
-    <div class="w-full h-full flex flex-col p-8 md:p-16">
-        <header class="text-center mb-10">
-            <h1 class="text-5xl md:text-7xl font-black tracking-tight text-white">{{ t('display_header') }}</h1>
+    <div class="w-full h-full flex flex-col p-8 md:p-12">
+        <header class="text-center mb-8">
+            <h1 class="text-5xl md:text-6xl font-black tracking-tight text-white">{{ settings.display_header_message }}</h1>
         </header>
 
         <main class="flex-grow flex items-center justify-center">
             <div id="calling-list" class="display-card w-full max-w-7xl rounded-3xl p-8 md:p-12">
                 <div id="calling-numbers-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 text-center">
-                    <p class="text-4xl text-gray-500 col-span-full">{{ t('no_calls') }}</p>
+                    <div class="text-4xl md:text-5xl text-gray-400 col-span-full flex items-center justify-center h-64">{{ t('no_calls') }}</div>
                 </div>
             </div>
         </main>
 
-        <footer class="mt-10">
+        <footer class="mt-8">
             <div class="text-center">
-                <h2 class="text-2xl md:text-4xl font-bold text-gray-400 mb-4">{{ t('up_next') }}</h2>
-                <div id="waiting-list" class="flex justify-center items-center gap-x-6 md:gap-x-12 text-3xl md:text-5xl text-amber-400 font-bold">
-                    <p class="text-gray-600">...</p>
+                <h2 class="text-2xl md:text-3xl font-bold text-gray-400 mb-4">{{ t('up_next') }}</h2>
+                <div id="waiting-list" class="flex flex-wrap justify-center items-center gap-x-6 md:gap-x-10 text-3xl md:text-5xl text-amber-400 font-bold">
+                    <p class="text-gray-500">...</p>
                 </div>
             </div>
         </footer>
@@ -74,14 +78,19 @@
                     oscillator: { type: 'sine' },
                     envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 }
                 }).toDestination();
+                console.log('Audio context started.');
             }
         }
 
         function playSound() {
-            if (!synth || !window.Tone) return;
-            const now = Tone.now();
-            synth.triggerAttackRelease("C5", "8n", now);
-            synth.triggerAttackRelease("G5", "8n", now + 0.2);
+            if (!synth || !window.Tone || Tone.context.state !== 'running') return;
+            try {
+                const now = Tone.now();
+                synth.triggerAttackRelease("C5", "8n", now);
+                synth.triggerAttackRelease("G5", "8n", now + 0.2);
+            } catch (error) {
+                console.error("Error playing sound:", error);
+            }
         }
 
         async function fetchAndUpdate() {
@@ -93,14 +102,14 @@
                 const currentCalledTickets = new Set(data.called.map(t => t.ticket_number));
 
                 if (data.called.length === 0) {
-                    callingContainer.innerHTML = `<p class="text-6xl text-gray-500 col-span-full py-20">${i18n.no_calls}</p>`;
+                    callingContainer.innerHTML = `<div class="text-4xl md:text-5xl text-gray-400 col-span-full flex items-center justify-center h-64">${i18n.no_calls}</div>`;
                 } else {
                     data.called.forEach(ticket => {
                         const ticketEl = document.createElement('div');
-                        ticketEl.className = 'py-6 bg-green-900/50 rounded-2xl border-2 border-green-500 shadow-2xl shadow-green-500/20 animate-pulse-intense';
+                        ticketEl.className = 'py-6 bg-green-500/10 rounded-2xl border-2 border-green-500 shadow-2xl shadow-green-500/20 animate-pulse-intense';
                         ticketEl.innerHTML = `
-                            <p class="text-8xl md:text-9xl font-black text-green-300">A${String(ticket.ticket_number).padStart(3, '0')}</p>
-                            <p class="text-2xl text-gray-300 mt-2">${ticket.party_size} ${i18n.guests}</p>
+                            <p class="text-7xl md:text-8xl font-black text-green-300">A${String(ticket.ticket_number).padStart(3, '0')}</p>
+                            <p class="text-xl text-gray-300 mt-2">${ticket.party_size} ${i18n.guests}</p>
                         `;
                         callingContainer.appendChild(ticketEl);
                     });
@@ -118,11 +127,12 @@
                 if (nextWaiting.length > 0) {
                     nextWaiting.forEach(ticket => {
                         const waitingEl = document.createElement('span');
+                        waitingEl.className = "opacity-80";
                         waitingEl.textContent = `A${String(ticket.ticket_number).padStart(3, '0')}`;
                         waitingListEl.appendChild(waitingEl);
                     });
                 } else {
-                    waitingListEl.innerHTML = `<p class="text-3xl text-gray-600">${i18n.none_waiting}</p>`;
+                    waitingListEl.innerHTML = `<p class="text-2xl text-gray-600">${i18n.none_waiting}</p>`;
                 }
 
             } catch (error) {

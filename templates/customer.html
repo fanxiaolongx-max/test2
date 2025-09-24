@@ -3,72 +3,64 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>在线取号 - 餐厅智能排队系统</title>
+    <title>{{ settings.restaurant_name }} - {{ t('app_title') }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; }
-        .card {
-            background-color: white;
-            border-radius: 1.5rem;
-            padding: 2.5rem;
-            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
-            max-width: 450px;
-            width: 100%;
-        }
-        .btn {
-            transition: all 0.2s ease-in-out;
-        }
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        }
+        html[lang="en"] body { font-family: 'Poppins', sans-serif; }
+        html[lang="ar"] body { font-family: 'Cairo', sans-serif; }
+        .btn { transition: all 0.2s ease-in-out; }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); }
     </style>
 </head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+<body class="bg-gray-50 flex items-center justify-center min-h-screen p-4 text-gray-800">
 
-    <div class="absolute top-4 {{ 'left-4' if dir == 'ltr' else 'right-4' }} flex gap-3">
-        <a href="{{ switch_lang_url('en') }}" class="px-3 py-1 text-sm bg-gray-800 text-white rounded">{{ t('switch_to_en') }}</a>
-        <a href="{{ switch_lang_url('ar') }}" class="px-3 py-1 text-sm bg-gray-800 text-white rounded">{{ t('switch_to_ar') }}</a>
+    <div class="absolute top-4 {{ 'left-4' if dir == 'ltr' else 'right-4' }} flex gap-3 z-10">
+        <a href="{{ switch_lang_url('en') }}" class="px-3 py-1 text-sm bg-white/80 backdrop-blur-sm shadow-sm ring-1 ring-gray-200 text-gray-800 rounded-full hover:bg-gray-100 transition">{{ t('switch_to_en') }}</a>
+        <a href="{{ switch_lang_url('ar') }}" class="px-3 py-1 text-sm bg-white/80 backdrop-blur-sm shadow-sm ring-1 ring-gray-200 text-gray-800 rounded-full hover:bg-gray-100 transition">{{ t('switch_to_ar') }}</a>
     </div>
 
-    <div class="card text-center">
-    <div class="card text-center">
-        <h1 class="text-3xl font-bold text-gray-800 mb-2">{{ t('welcome') }}</h1>
-        <p class="text-gray-500 mb-8">{{ t('smart_queue') }}</p>
+    <main class="w-full max-w-md">
+        <div class="bg-white rounded-3xl shadow-lg p-8 md:p-10 text-center">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900 mb-2">{{ settings.restaurant_name }}</h1>
+            <p class="text-gray-500 mb-8">{{ settings.welcome_message }}</p>
 
-        <div class="bg-gray-50 rounded-xl p-6 mb-8">
-            <h2 class="text-lg font-semibold text-gray-700 mb-4">{{ t('current_queue') }}</h2>
-            <div class="flex justify-around">
-                <div>
-                    <p class="text-sm text-gray-500">{{ t('now_calling') }}</p>
-                    <p id="now-calling" class="text-3xl font-bold text-indigo-600">-</p>
-                </div>
-                <div>
-                    <p class="text-sm text-gray-500">{{ t('waiting_tables') }}</p>
-                    <p id="waiting-count" class="text-3xl font-bold text-amber-500">0</p>
+            <div class="bg-gray-50 rounded-xl p-6 mb-8 ring-1 ring-gray-200">
+                <h2 class="text-base font-semibold text-gray-700 mb-4">{{ t('current_queue') }}</h2>
+                <div class="flex justify-around items-center">
+                    <div class="w-1/2">
+                        <p class="text-sm text-gray-500">{{ t('now_calling') }}</p>
+                        <p id="now-calling" class="text-3xl font-bold text-indigo-600 truncate">-</p>
+                    </div>
+                    <div class="border-l border-gray-200 h-12"></div>
+                    <div class="w-1/2">
+                        <p class="text-sm text-gray-500">{{ t('waiting_tables') }}</p>
+                        <p id="waiting-count" class="text-3xl font-bold text-amber-500">0</p>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <div id="my-ticket-info" class="hidden bg-indigo-50 border border-indigo-200 rounded-xl p-6 mb-8">
-            <h2 class="text-lg font-semibold text-indigo-800 mb-4">{{ t('my_queue_info') }}</h2>
-            <p class="text-sm text-gray-600">{{ t('your_number') }}</p>
-            <p id="my-ticket-number" class="text-5xl font-extrabold text-indigo-700 my-2">-</p>
-            <p id="my-ticket-status" class="text-lg font-medium text-gray-700">-</p>
-            <button onclick="clearTicket()" class="mt-4 text-sm text-gray-500 hover:text-red-600 transition">{{ t('clear_my_number') }}</button>
-        </div>
+            <div id="my-ticket-info" class="hidden bg-indigo-50 border border-indigo-200 rounded-xl p-6 mb-8">
+                <h2 class="text-lg font-semibold text-indigo-800 mb-4">{{ t('my_queue_info') }}</h2>
+                <p class="text-sm text-gray-600">{{ t('your_number') }}</p>
+                <p id="my-ticket-number" class="text-5xl font-extrabold text-indigo-700 my-2">-</p>
+                <p id="my-ticket-status" class="text-base font-medium text-gray-700">-</p>
+                <button onclick="clearTicket()" class="mt-4 text-xs text-gray-500 hover:text-red-600 transition">{{ t('clear_my_number') }}</button>
+            </div>
 
-        <div id="take-ticket-section">
-            <label for="party-size" class="block text-md font-medium text-gray-700 mb-2">{{ t('enter_party_size') }}</label>
-            <input type="number" id="party-size" min="1" class="w-full px-4 py-3 text-center text-lg border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="{{ t('party_size_placeholder') }}">
-            <button id="take-ticket-btn" onclick="takeTicket()" class="btn w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg mt-4 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                {{ t('take_ticket_now') }}
-            </button>
-        </div>
+            <div id="take-ticket-section">
+                <label for="party-size" class="block text-md font-medium text-gray-700 mb-2">{{ t('enter_party_size') }}</label>
+                <input type="number" id="party-size" min="1" class="w-full px-4 py-3 text-center text-lg border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="{{ t('party_size_placeholder') }}">
+                <button id="take-ticket-btn" onclick="takeTicket()" class="btn w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg mt-4 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    {{ t('take_ticket_now') }}
+                </button>
+            </div>
 
-        <div id="message-box" class="mt-4 text-sm font-medium"></div>
-    </div>
+            <div id="message-box" class="mt-4 text-sm font-medium min-h-[20px]"></div>
+        </div>
+    </main>
 
 <script>
     const i18n = {
@@ -79,7 +71,8 @@
         invalid_party_size: "{{ t('invalid_party_size') }}",
         taking: "{{ t('taking_ticket') }}",
         take_ticket_now: "{{ t('take_ticket_now') }}",
-        request_failed: "{{ t('request_failed') }}"
+        request_failed: "{{ t('request_failed') }}",
+        status_label: "{{ t('status') }}"
     };
 
     const myTicketInfoEl = document.getElementById('my-ticket-info');
@@ -96,13 +89,10 @@
     async function fetchQueueStatus() {
         try {
             const response = await fetch('/api/queue');
+            if (!response.ok) throw new Error('Network response was not ok');
             const data = await response.json();
 
-            if (data.called.length > 0) {
-                nowCallingEl.textContent = data.called.map(t => t.ticket_number).join(', ');
-            } else {
-                nowCallingEl.textContent = '-';
-            }
+            nowCallingEl.textContent = data.called.length > 0 ? data.called.map(t => 'A'+String(t.ticket_number).padStart(3, '0')).join(', ') : '-';
             waitingCountEl.textContent = data.total_waiting;
 
             if (myTicket) {
@@ -126,15 +116,15 @@
         myTicket = ticketNumber;
         localStorage.setItem('myTicketNumber', ticketNumber);
 
-        myTicketNumberEl.textContent = ticketNumber;
+        myTicketNumberEl.textContent = 'A' + String(ticketNumber).padStart(3, '0');
         takeTicketSectionEl.classList.add('hidden');
         myTicketInfoEl.classList.remove('hidden');
 
         if (status === 'waiting') {
-            const position = waitingList.findIndex(t => t.ticket_number === ticketNumber) + 1;
-            myTicketStatusEl.innerHTML = `${'{{ t("status") }}'}: <span class="font-bold text-amber-600">${i18n.waiting}</span><br>${position > 0 ? position - 1 : 0} ${i18n.tables_ahead}`;
+            const position = waitingList.findIndex(t => t.ticket_number === ticketNumber);
+            myTicketStatusEl.innerHTML = `${i18n.status_label}: <span class="font-bold text-amber-600">${i18n.waiting}</span><br>${position >= 0 ? position : 0} ${i18n.tables_ahead}`;
         } else if (status === 'called') {
-            myTicketStatusEl.innerHTML = `${'{{ t("status") }}'}: <span class="font-bold text-green-600 animate-pulse">${i18n.called}</span>`;
+            myTicketStatusEl.innerHTML = `${i18n.status_label}: <span class="font-bold text-green-600 animate-pulse">${i18n.called}</span>`;
         }
     }
 
@@ -156,10 +146,11 @@
                 body: JSON.stringify({ party_size: partySize })
             });
             const data = await response.json();
-            if (data.success) {
-                showMessage(data.message, 'success');
-                await fetchQueueStatus();
-                showMyTicketInfo(data.ticket_number, 'waiting', []);
+            if (response.ok && data.success) {
+                // Clear previous messages before showing success.
+                messageBoxEl.textContent = '';
+                showMyTicketInfo(data.ticket_number, 'waiting', []); // Immediately show info
+                await fetchQueueStatus(); // Then update with real position
             } else {
                 showMessage(data.message || i18n.request_failed, 'error');
             }
@@ -181,7 +172,7 @@
 
     function showMessage(msg, type) {
         messageBoxEl.textContent = msg;
-        messageBoxEl.className = 'mt-4 text-sm font-medium';
+        messageBoxEl.className = 'mt-4 text-sm font-medium min-h-[20px]';
         if (type === 'success') messageBoxEl.classList.add('text-green-600');
         else if (type === 'error') messageBoxEl.classList.add('text-red-600');
         else messageBoxEl.classList.add('text-gray-600');

@@ -3,52 +3,69 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ t('admin_title') }}</title>
+    <title>{{ settings.restaurant_name }} - {{ t('admin_title') }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Cairo:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
-        .status-waiting { background-color: #fef9c3; color: #a16207; }
-        .status-called { background-color: #dcfce7; color: #166534; }
-        .table-cell { padding: 1rem 1.5rem; }
+        html[lang="en"] body { font-family: 'Poppins', sans-serif; }
+        html[lang="ar"] body { font-family: 'Cairo', sans-serif; }
+        body { background-color: #f7f8fa; }
+        .status-waiting { background-color: #fffbeb; color: #b45309; }
+        .status-called { background-color: #f0fdf4; color: #16a34a; }
+        .table-cell { padding: 0.75rem 1.5rem; }
+        .btn-primary { transition: all 0.2s ease-in-out; }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); }
     </style>
 </head>
-<body class="flex items-center justify-center min-h-screen">
-
-    <div class="absolute top-4 {{ 'left-4' if dir == 'ltr' else 'right-4' }} flex gap-3">
-        <a href="{{ switch_lang_url('en') }}" class="px-3 py-1 text-sm bg-gray-800 text-white rounded">{{ t('switch_to_en') }}</a>
-        <a href="{{ switch_lang_url('ar') }}" class="px-3 py-1 text-sm bg-gray-800 text-white rounded">{{ t('switch_to_ar') }}</a>
+<body class="text-gray-800">
+    <!-- 语言切换 -->
+    <div class="absolute top-4 {{ 'left-4' if dir == 'ltr' else 'right-4' }} z-10">
+        <div class="relative" data-headlessui-state>
+            <button class="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-medium shadow-sm ring-1 ring-gray-200 hover:bg-gray-50">
+                <span>{{ t('switch_to_en') if lang == 'en' else t('switch_to_ar') }}</span>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" class="h-5 w-5 text-gray-400"><path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"></path></svg>
+            </button>
+            <div class="absolute mt-2 w-32 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none hidden" id="lang-menu">
+                <div class="py-1">
+                    <a href="{{ switch_lang_url('en') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">English</a>
+                    <a href="{{ switch_lang_url('ar') }}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">العربية</a>
+                </div>
+            </div>
+        </div>
     </div>
 
     {% if not logged_in %}
-    <div class="w-full max-w-sm p-8 space-y-6 bg-white rounded-2xl shadow-lg">
-        <div class="text-center">
-            <h1 class="text-3xl font-bold text-gray-900">{{ t('admin_login') }}</h1>
-            <p class="mt-2 text-sm text-gray-600">{{ t('admin_welcome') }}</p>
+    <div class="flex min-h-screen items-center justify-center bg-gray-100 px-4">
+        <div class="w-full max-w-md space-y-6">
+            <div class="text-center">
+                <h1 class="text-3xl font-bold tracking-tight text-gray-900">{{ t('admin_login') }}</h1>
+                <p class="mt-2 text-sm text-gray-600">{{ t('admin_welcome') }}</p>
+            </div>
+            {% if error %}
+                <p class="text-center text-sm text-red-600 bg-red-100 p-3 rounded-lg">{{ error }}</p>
+            {% endif %}
+            <form class="space-y-6 rounded-2xl bg-white p-8 shadow-lg" action="/admin" method="POST">
+                <div>
+                    <label for="username" class="sr-only">{{ t('username') }}</label>
+                    <input id="username" name="username" type="text" required class="w-full px-4 py-3 text-gray-900 bg-gray-50 border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" placeholder="{{ t('username') }}" value="admin">
+                </div>
+                <div>
+                    <label for="password" class="sr-only">{{ t('password') }}</label>
+                    <input id="password" name="password" type="password" required class="w-full px-4 py-3 text-gray-900 bg-gray-50 border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" placeholder="{{ t('password') }}">
+                </div>
+                <button type="submit" class="btn-primary w-full px-4 py-3 font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    {{ t('login') }}
+                </button>
+            </form>
         </div>
-        {% if error %}
-            <p class="text-center text-sm text-red-600 bg-red-100 p-3 rounded-lg">{{ error }}</p>
-        {% endif %}
-        <form class="space-y-6" action="/admin" method="POST">
-            <div>
-                <label for="username" class="sr-only">{{ t('username') }}</label>
-                <input id="username" name="username" type="text" required class="w-full px-4 py-3 text-gray-900 bg-gray-100 border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" placeholder="{{ t('username') }}" value="admin">
-            </div>
-            <div>
-                <label for="password" class="sr-only">{{ t('password') }}</label>
-                <input id="password" name="password" type="password" required class="w-full px-4 py-3 text-gray-900 bg-gray-100 border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500" placeholder="{{ t('password') }}">
-            </div>
-            <button type="submit" class="w-full px-4 py-3 font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-transform hover:scale-105">
-                {{ t('login') }}
-            </button>
-        </form>
     </div>
-
     {% else %}
     <div class="container mx-auto p-4 md:p-8 w-full">
         <header class="flex flex-col md:flex-row justify-between items-center mb-8">
             <div>
-                <h1 class="text-4xl font-bold text-gray-800">{{ t('dashboard') }}</h1>
+                <h1 class="text-4xl font-bold text-gray-800">{{ settings.restaurant_name }}</h1>
                 <p class="text-gray-500 mt-1">{{ t('realtime_manage') }}</p>
             </div>
             <div class="flex items-center gap-4 mt-4 md:mt-0">
@@ -62,8 +79,9 @@
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- 队列列表 -->
             <div class="lg:col-span-2 bg-white rounded-2xl shadow-lg overflow-hidden">
-                <div class="p-6 border-b">
+                <div class="p-6 border-b border-gray-200">
                     <h2 class="text-xl font-semibold text-gray-800">{{ t('queue_list') }}</h2>
                 </div>
                 <div class="overflow-x-auto">
@@ -71,7 +89,7 @@
                         <thead class="text-xs text-gray-700 uppercase bg-gray-50">
                             <tr>
                                 <th scope="col" class="table-cell">{{ t('ticket_no') }}</th>
-                                <th scope="col" class="table-cell">{{ t('party_size') }}</th>
+                                <th scope="col" class="table-cell text-center">{{ t('party_size') }}</th>
                                 <th scope="col" class="table-cell">{{ t('status_col') }}</th>
                                 <th scope="col" class="table-cell text-center">{{ t('actions') }}</th>
                             </tr>
@@ -83,16 +101,38 @@
                 </div>
             </div>
 
+            <!-- 右侧信息栏 -->
             <div class="space-y-8">
                 <div class="bg-white rounded-2xl shadow-lg p-6 text-center">
                     <h3 class="text-lg font-semibold text-gray-700 mb-2">{{ t('waiting_count') }}</h3>
                     <p id="waiting-count" class="text-6xl font-extrabold text-indigo-600">0</p>
                     <p class="text-gray-500">{{ t('tables') }}</p>
                 </div>
-                <div class="bg-white rounded-2xl shadow-lg p-6 text-center">
+                 <div class="bg-white rounded-2xl shadow-lg p-6 text-center">
                      <h3 class="text-lg font-semibold text-gray-700 mb-4">{{ t('scan_to_join') }}</h3>
                      <div id="qrcode" class="flex justify-center"></div>
                      <p class="text-xs text-gray-500 mt-4">{{ t('scan_tip') }}</p>
+                </div>
+                <!-- 店铺设置 -->
+                <div class="bg-white rounded-2xl shadow-lg p-6">
+                    <h3 class="text-lg font-semibold text-gray-700 mb-1">{{ t('settings') }}</h3>
+                    <p class="text-sm text-gray-500 mb-6">{{ t('settings_desc') }}</p>
+                    <form id="settings-form" class="space-y-4">
+                        <div>
+                            <label for="restaurant_name" class="block text-sm font-medium text-gray-700">{{ t('restaurant_name') }}</label>
+                            <input type="text" name="restaurant_name" id="restaurant_name" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="welcome_message" class="block text-sm font-medium text-gray-700">{{ t('welcome_message') }}</label>
+                            <input type="text" name="welcome_message" id="welcome_message" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="display_header_message" class="block text-sm font-medium text-gray-700">{{ t('display_header_message') }}</label>
+                            <input type="text" name="display_header_message" id="display_header_message" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        </div>
+                        <button type="submit" class="btn-primary w-full !mt-6 bg-indigo-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-700">{{ t('save_settings') }}</button>
+                    </form>
+                    <div id="settings-message" class="mt-3 text-sm text-center"></div>
                 </div>
             </div>
         </div>
@@ -101,24 +141,22 @@
         const queueTableBody = document.getElementById('queue-table-body');
         const waitingCountEl = document.getElementById('waiting-count');
         const qrcodeEl = document.getElementById('qrcode');
+        const settingsForm = document.getElementById('settings-form');
+        const settingsMessageEl = document.getElementById('settings-message');
 
         const i18n = {
-            waiting_badge: "{{ t('waiting_badge') }}",
-            called_badge: "{{ t('called_badge') }}",
-            call: "{{ t('call') }}",
-            seat: "{{ t('seat') }}",
-            requeue: "{{ t('requeue') }}",
-            cancel_action: "{{ t('cancel_action') }}",
-            load_failed: "{{ t('load_failed') }}",
-            no_customers: "{{ t('no_customers') }}",
-            op_failed_try_again: "{{ t('op_failed_try_again') }}",
-            qr_alt: "{{ t('qr_alt') }}"
+            waiting_badge: "{{ t('waiting_badge') }}", called_badge: "{{ t('called_badge') }}",
+            call: "{{ t('call') }}", seat: "{{ t('seat') }}", requeue: "{{ t('requeue') }}",
+            cancel_action: "{{ t('cancel_action') }}", load_failed: "{{ t('load_failed') }}",
+            no_customers: "{{ t('no_customers') }}", op_failed_try_again: "{{ t('op_failed_try_again') }}",
+            qr_alt: "{{ t('qr_alt') }}", settings_saved: "{{ t('settings_saved') }}"
         };
 
+        // QR Code Generation
         const customerUrl = '{{ host_url }}';
         if (customerUrl) {
             const qrCodeImg = document.createElement('img');
-            qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(customerUrl)}`;
+            qrCodeImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(customerUrl)}`;
             qrCodeImg.alt = i18n.qr_alt;
             qrCodeImg.classList.add('rounded-lg');
             qrcodeEl.appendChild(qrCodeImg);
@@ -137,9 +175,8 @@
 
         function updateUI(data) {
             waitingCountEl.textContent = data.total_waiting;
-
             queueTableBody.innerHTML = '';
-            const allTickets = [...data.called, ...data.waiting];
+            const allTickets = [...data.called.sort((a,b) => a.id - b.id), ...data.waiting.sort((a,b) => a.id - b.id)];
 
             if (allTickets.length === 0) {
                 queueTableBody.innerHTML = `<tr><td colspan="4" class="text-center p-8 text-gray-500">${i18n.no_customers}</td></tr>`;
@@ -148,32 +185,23 @@
 
             allTickets.forEach(ticket => {
                 const row = document.createElement('tr');
-                row.className = 'bg-white border-b hover:bg-gray-50';
-
-                let statusBadge = '';
-                if (ticket.status === 'waiting') {
-                    statusBadge = `<span class="px-2 py-1 text-xs font-medium rounded-full status-waiting">${i18n.waiting_badge}</span>`;
-                } else if (ticket.status === 'called') {
-                    statusBadge = `<span class="px-2 py-1 text-xs font-medium rounded-full status-called animate-pulse">${i18n.called_badge}</span>`;
-                } else {
-                    statusBadge = `<span class="px-2 py-1 text-xs font-medium rounded-full">${ticket.status}</span>`;
-                }
-
+                row.className = 'bg-white border-b border-gray-200 hover:bg-gray-50';
+                const statusBadge = ticket.status === 'waiting' ? `<span class="px-2.5 py-1 text-xs font-medium rounded-full status-waiting">${i18n.waiting_badge}</span>`
+                                  : ticket.status === 'called' ? `<span class="px-2.5 py-1 text-xs font-medium rounded-full status-called animate-pulse">${i18n.called_badge}</span>`
+                                  : `<span class="px-2.5 py-1 text-xs font-medium rounded-full">${ticket.status}</span>`;
                 let actionButtons = '';
                 if (ticket.status === 'waiting') {
-                    actionButtons = `
-                        <button onclick="updateStatus(${ticket.id}, 'called')" class="font-medium text-indigo-600 hover:underline">${i18n.call}</button>
-                    `;
+                    actionButtons = `<button onclick="updateStatus(${ticket.id}, 'called')" class="font-medium text-indigo-600 hover:underline">${i18n.call}</button>`;
                 } else if (ticket.status === 'called') {
                     actionButtons = `
                         <button onclick="updateStatus(${ticket.id}, 'seated')" class="font-medium text-green-600 hover:underline">${i18n.seat}</button>
-                        <button onclick="updateStatus(${ticket.id}, 'waiting')" class="ml-4 font-medium text-gray-500 hover:underline">${i18n.requeue}</button>
-                    `;
+                        <button onclick="updateStatus(${ticket.id}, 'waiting')" class="mx-3 font-medium text-gray-500 hover:underline">${i18n.requeue}</button>`;
                 }
-                actionButtons += `<button onclick="updateStatus(${ticket.id}, 'cancelled')" class="ml-4 font-medium text-red-600 hover:underline">${i18n.cancel_action}</button>`;
-
+                if (ticket.status !== 'seated' && ticket.status !== 'cancelled') {
+                   actionButtons += `<button onclick="updateStatus(${ticket.id}, 'cancelled')" class="ml-3 font-medium text-red-600 hover:underline">${i18n.cancel_action}</button>`;
+                }
                 row.innerHTML = `
-                    <td class="table-cell font-bold text-gray-900 text-lg">A${String(ticket.ticket_number).padStart(3, '0')}</td>
+                    <td class="table-cell font-bold text-gray-900 text-base">A${String(ticket.ticket_number).padStart(3, '0')}</td>
                     <td class="table-cell text-center">${ticket.party_size}</td>
                     <td class="table-cell">${statusBadge}</td>
                     <td class="table-cell text-center">${actionButtons}</td>
@@ -185,33 +213,69 @@
         async function updateStatus(id, status) {
             try {
                 await fetch(`/api/update_status/${id}`, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ status })
                 });
                 fetchQueue();
-            } catch (error) {
-                console.error('Failed to update status:', error);
-                alert(i18n.op_failed_try_again);
-            }
+            } catch (error) { alert(i18n.op_failed_try_again); }
         }
 
         async function resetQueue() {
             try {
                 await fetch(`/api/reset_queue`, { method: 'POST' });
                 fetchQueue();
+            } catch (error) { alert(i18n.op_failed_try_again); }
+        }
+
+        // Settings Management
+        function populateSettingsForm() {
+            document.getElementById('restaurant_name').value = '{{ settings.restaurant_name }}';
+            document.getElementById('welcome_message').value = '{{ settings.welcome_message }}';
+            document.getElementById('display_header_message').value = '{{ settings.display_header_message }}';
+        }
+
+        async function saveSettings(event) {
+            event.preventDefault();
+            const formData = new FormData(settingsForm);
+            const data = Object.fromEntries(formData.entries());
+            settingsMessageEl.textContent = '...';
+            try {
+                const response = await fetch('/api/settings', {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                if (result.success) {
+                    settingsMessageEl.textContent = i18n.settings_saved;
+                    settingsMessageEl.className = 'mt-3 text-sm text-center text-green-600';
+                    // Refresh page to see changes in title etc.
+                    setTimeout(() => window.location.reload(), 1000);
+                }
             } catch (error) {
-                console.error('Failed to reset queue:', error);
-                alert(i18n.op_failed_try_again);
+                 settingsMessageEl.textContent = i18n.op_failed_try_again;
+                 settingsMessageEl.className = 'mt-3 text-sm text-center text-red-600';
             }
         }
 
         document.addEventListener('DOMContentLoaded', () => {
             fetchQueue();
-            setInterval(fetchQueue, 5000);
+            setInterval(fetchQueue, 3000);
+            populateSettingsForm();
+            settingsForm.addEventListener('submit', saveSettings);
+
+            // Lang dropdown toggle
+            const langButton = document.querySelector('[data-headlessui-state] button');
+            const langMenu = document.getElementById('lang-menu');
+            langButton.addEventListener('click', () => {
+                langMenu.classList.toggle('hidden');
+            });
+            document.addEventListener('click', (e) => {
+                if (!langButton.contains(e.target)) {
+                    langMenu.classList.add('hidden');
+                }
+            });
         });
     </script>
     {% endif %}
-
 </body>
 </html>
