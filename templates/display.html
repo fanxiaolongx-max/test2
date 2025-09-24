@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>排队信息 - 大屏幕</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@700;900&display=swap" rel="stylesheet">
+    <style>
+        /* 使用更具冲击力的字体 */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0c0a09; /* 石板黑，提供高对比度 */
+            color: #f8fafc;
+            overflow: hidden;
+            cursor: none; /* 在大屏上隐藏鼠标指针 */
+        }
+        .display-card {
+            background-color: #1c1917;
+            border: 1px solid #44403c;
+        }
+        /* 叫号号码的动画效果 */
+        @keyframes pulse-intense {
+          0%, 100% {
+            transform: scale(1);
+            opacity: 1;
+          }
+          50% {
+            transform: scale(1.05);
+            opacity: 0.9;
+          }
+        }
+        .animate-pulse-intense {
+          animation: pulse-intense 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+    <div class="w-full h-full flex flex-col p-8 md:p-16">
+        <!-- 顶部标题 -->
+        <header class="text-center mb-10">
+            <h1 class="text-5xl md:text-7xl font-black tracking-tight text-white">请以下号码的顾客就餐</h1>
+        </header>
+
+        <!-- 主要叫号区域 -->
+        <main class="flex-grow flex items-center justify-center">
+            <div id="calling-list" class="display-card w-full max-w-7xl rounded-3xl p-8 md:p-12">
+                <div id="calling-numbers-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 text-center">
+                    <!-- JS 动态填充 -->
+                    <p class="text-4xl text-gray-500 col-span-full">暂无叫号</p>
+                </div>
+            </div>
+        </main>
+
+        <!-- 底部等待列表 -->
+        <footer class="mt-10">
+            <div class="text-center">
+                <h2 class="text-2xl md:text-4xl font-bold text-gray-400 mb-4">准备叫号</h2>
+                <div id="waiting-list" class="flex justify-center items-center gap-x-6 md:gap-x-12 text-3xl md:text-5xl text-amber-400 font-bold">
+                    <!-- JS 动态填充 -->
+                    <p class="text-gray-600">...</p>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- 用于播放声音 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+
+    <script>
+        const callingContainer = document.getElementById('calling-numbers-container');
+        const waitingListEl = document.getElementById('waiting-list');
+        let lastCalledTickets = new Set();
+        let synth;
+
+        // 初始化声音合成器
+        function initAudio() {
+            if (!synth) {
+                synth = new Tone.Synth({
+                    oscillator: { type: 'sine' },
+                    envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 }
+                }).toDestination();
+            }
+        }
+
+        // 播放提示音
+        function playSound() {
+            if (!synth) return;
+            // 播放一个简单的音阶来吸引注意
+            const now = Tone.now();
+            synth.triggerAttackRelease("C5", "8n", now);
+            synth.triggerAttackRelease("G5", "8n", now + 0.2);
+        }
+
+        async function fetchAndUpdate() {
+            try {
+                const response = await fetch('/api/queue');
+                const data = await response.json();
+
+                // --- 更新正在叫号列表 ---
+                callingContainer.innerHTML = '';
+                const currentCalledTickets = new Set(data.called.map(t => t.ticket_number));
+
+                if (data.called.length === 0) {
+                     callingContainer.innerHTML = '<p class="text-6xl text-gray-500 col-span-full py-20">暂无叫号</p>';
+                } else {
+                    data.called.forEach(ticket => {
+                        const ticketEl = document.createElement('div');
+                        ticketEl.className = 'py-6 bg-green-900/50 rounded-2xl border-2 border-green-500 shadow-2xl shadow-green-500/20 animate-pulse-intense';
+                        ticketEl.innerHTML = `
+                            <p class="text-8xl md:text-9xl font-black text-green-300">A${String(ticket.ticket_number).padStart(3, '0')}</p>
+                            <p class="text-2xl text-gray-300 mt-2">${ticket.party_size}位</p>
+                        `;
+                        callingContainer.appendChild(ticketEl);
+                    });
+                }
+
+                // 检查是否有新的号码被叫到
+                let hasNewCall = false;
+                currentCalledTickets.forEach(ticketNum => {
+                    if (!lastCalledTickets.has(ticketNum)) {
+                        hasNewCall = true;
+                    }
+                });
+
+                if (hasNewCall) {
+                    playSound();
+                }
+                lastCalledTickets = currentCalledTickets;
+
+
+                // --- 更新等待列表 ---
+                waitingListEl.innerHTML = '';
+                const nextWaiting = data.waiting.slice(0, 5); // 只显示前5个等待
+                if(nextWaiting.length > 0) {
+                    nextWaiting.forEach(ticket => {
+                        const waitingEl = document.createElement('span');
+                        waitingEl.textContent = `A${String(ticket.ticket_number).padStart(3, '0')}`;
+                        waitingListEl.appendChild(waitingEl);
+                    });
+                } else {
+                    waitingListEl.innerHTML = '<p class="text-3xl text-gray-600">当前无等待</p>';
+                }
+
+            } catch (error) {
+                console.error("更新失败:", error);
+            }
+        }
+
+        // 首次点击屏幕时，初始化音频上下文（浏览器策略要求）
+        document.body.addEventListener('click', initAudio, { once: true });
+
+        // 启动轮询
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchAndUpdate();
+            setInterval(fetchAndUpdate, 3000); // 每3秒刷新
+        });
+    </script>
+</body>
+</html>
