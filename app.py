@@ -1,7 +1,7 @@
 import sqlite3
 import hashlib
 import os
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, g
 
 # ------------------- 配置 -------------------
 # 重要提示: 为了您的数据安全，请务必修改下面的 ADMIN_PASSWORD 变量的值！
@@ -14,6 +14,36 @@ DATA_DIR = 'data'
 DATABASE_FILE = os.path.join(DATA_DIR, 'database.db')
 
 SECRET_KEY = 'your_very_secret_key_change_it' # 用于 session 加密，请修改为随机字符串
+
+# 简单多语言配置：默认英文，可切换到阿拉伯语
+SUPPORTED_LANGS = {'en', 'ar'}
+DEFAULT_LANG = 'en'
+TRANSLATIONS = {
+    'en': {
+        'app_title': 'Queue System',
+        'switch_to_en': 'English',
+        'switch_to_ar': 'Arabic',
+        'login_error': 'Incorrect username or password',
+        'unauthorized': 'Unauthorized',
+        'invalid_party_size': 'Please enter a valid party size',
+        'ticket_success': 'Ticket issued successfully. Your number is {n}.',
+        'invalid_status': 'Invalid status',
+        'status_updated': 'Ticket {id} status updated to {status}',
+        'queue_reset': 'Queue has been reset',
+    },
+    'ar': {
+        'app_title': 'نظام الدور',
+        'switch_to_en': 'الإنجليزية',
+        'switch_to_ar': 'العربية',
+        'login_error': 'اسم المستخدم أو كلمة المرور غير صحيحة',
+        'unauthorized': 'غير مصرح',
+        'invalid_party_size': 'يرجى إدخال عدد أشخاص صالح',
+        'ticket_success': 'تم إصدار التذكرة بنجاح. رقمك هو {n}.',
+        'invalid_status': 'حالة غير صالحة',
+        'status_updated': 'تم تحديث حالة التذكرة {id} إلى {status}',
+        'queue_reset': 'تمت إعادة تعيين قائمة الانتظار',
+    }
+}
 
 # ------------------- 初始化 -------------------
 app = Flask(__name__)
@@ -50,7 +80,61 @@ def init_db():
 # !!! 关键改动: 在应用启动时就初始化数据库 !!!
 init_db()
 
-# ------------------- 核心 API 路由 -------------------
+def _get_lang_from_request():
+    # 优先 URL 查询参数 ?lang=xx，其次 session，最后默认
+    q = request.args.get('lang', '').lower().strip()
+    if q in SUPPORTED_LANGS:
+        return q
+    s = session.get('lang')
+    if s in SUPPORTED_LANGS:
+        return s
+    return DEFAULT_LANG
+
+@app.before_request
+def _set_lang():
+    # 将语言和方向注入到 g
+    lang = _get_lang_from_request()
+    session['lang'] = lang
+    g.lang = lang
+    g.dir = 'rtl' if lang == 'ar' else 'ltr'
+
+@app.context_processor
+def _inject_i18n():
+    def t(key, **kwargs):
+        lang = getattr(g, 'lang', DEFAULT_LANG)
+        txt = TRANSLATIONS.get(lang, {}).get(key, TRANSLATIONS[DEFAULT_LANG].get(key, key))
+        if kwargs:
+            try:
+                return txt.format(**kwargs)
+            except Exception:
+                return txt
+        return txt
+
+    def switch_lang_url(lang_code):
+        # 构造当前路径的语言切换 URL（通过查询参数）
+        from urllib.parse import urlencode
+        args = request.args.to_dict(flat=True)
+        args['lang'] = lang_code
+        return f"{request.path}?{urlencode(args)}"
+
+    return dict(
+        t=t,
+        lang=getattr(g, 'lang', DEFAULT_LANG),
+        dir=getattr(g, 'dir', 'ltr'),
+        switch_lang_url=switch_lang_url,
+        SUPPORTED_LANGS=SUPPORTED_LANGS
+    )
+
+@app.route('/set_lang/<lang_code>')
+def set_lang(lang_code):
+    # 可选：通过独立路由设置语言并跳回来源页
+    lang_code = (lang_code or '').lower()
+    if lang_code in SUPPORTED_LANGS:
+        session['lang'] = lang_code
+    ref = request.headers.get('Referer') or url_for('customer_page')
+    return redirect(ref)
+
+
 @app.route('/api/queue')
 def get_queue_status():
     """获取当前整个排队列表的状态"""
@@ -74,7 +158,7 @@ def take_ticket():
     party_size = data.get('party_size')
 
     if not party_size or not str(party_size).isdigit() or int(party_size) <= 0:
-        return jsonify({'success': False, 'message': '请输入有效的人数'}), 400
+        return jsonify({'success': False, 'message': 'Please enter a valid party size'}), 400
 
     conn = get_db_connection()
     # 查找当前最大的票号
@@ -89,40 +173,40 @@ def take_ticket():
     return jsonify({
         'success': True, 
         'ticket_number': new_ticket_number,
-        'message': f'取号成功！您的号码是 {new_ticket_number}。'
+        'message': f'Ticket issued successfully. Your number is {new_ticket_number}.'
     })
 
 @app.route('/api/update_status/<int:ticket_id>', methods=['POST'])
 def update_ticket_status(ticket_id):
     """商家更新票号状态 (叫号、入座、取消)"""
     if 'logged_in' not in session:
-        return jsonify({'success': False, 'message': '未授权'}), 401
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
         
     data = request.get_json()
     new_status = data.get('status')
     
     if new_status not in ['called', 'seated', 'cancelled', 'waiting']:
-        return jsonify({'success': False, 'message': '无效的状态'}), 400
+        return jsonify({'success': False, 'message': 'Invalid status'}), 400
 
     conn = get_db_connection()
     conn.execute('UPDATE queue SET status = ? WHERE id = ?', (new_status, ticket_id))
     conn.commit()
     conn.close()
     
-    return jsonify({'success': True, 'message': f'号码 {ticket_id} 状态已更新为 {new_status}'})
+    return jsonify({'success': True, 'message': f'Ticket {ticket_id} status updated to {new_status}'})
     
 @app.route('/api/reset_queue', methods=['POST'])
 def reset_queue():
     """商家重置清空整个队列"""
     if 'logged_in' not in session:
-        return jsonify({'success': False, 'message': '未授权'}), 401
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
     
     conn = get_db_connection()
     conn.execute('DELETE FROM queue')
     conn.commit()
     conn.close()
     
-    return jsonify({'success': True, 'message': '队列已重置'})
+    return jsonify({'success': True, 'message': 'Queue has been reset'})
 
 # ------------------- 页面路由 -------------------
 @app.route('/')
@@ -148,7 +232,7 @@ def admin_page():
             session['logged_in'] = True
             return redirect(url_for('admin_page'))
         else:
-            return render_template('admin.html', error='错误的用户名或密码')
+            return render_template('admin.html', error='Incorrect username or password')
             
     if 'logged_in' in session:
         # 获取当前服务器地址用于生成二维码
@@ -167,8 +251,7 @@ def logout():
 if __name__ == '__main__':
     # 本地开发时，仍然使用 Flask 自带的服务器
     print("Flask app is running for local development. Access points:")
-    print(f"  - Customer: http://127.0.0.1:5000/")
-    print(f"  - Admin:    http://127.0.0.1:5000/admin")
-    print(f"  - Display:  http://127.0.0.1:5000/display")
-    app.run(debug=True, host='0.0.0.0', port=5000)
-
+    print(f"  - Customer: http://127.0.0.1:5090/")
+    print(f"  - Admin:    http://127.0.0.1:5090/admin")
+    print(f"  - Display:  http://127.0.0.1:5090/display")
+    app.run(debug=True, host='0.0.0.0', port=5090)
