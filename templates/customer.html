@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>在线取号 - 餐厅智能排队系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .card {
+            background-color: white;
+            border-radius: 1.5rem;
+            padding: 2.5rem;
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+            max-width: 450px;
+            width: 100%;
+        }
+        .btn {
+            transition: all 0.2s ease-in-out;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen p-4">
+
+    <div class="card text-center">
+        <!-- 餐厅名称 -->
+        <h1 class="text-3xl font-bold text-gray-800 mb-2">欢迎光临</h1>
+        <p class="text-gray-500 mb-8">智能排队系统</p>
+
+        <!-- 实时排队信息 -->
+        <div class="bg-gray-50 rounded-xl p-6 mb-8">
+            <h2 class="text-lg font-semibold text-gray-700 mb-4">当前排队情况</h2>
+            <div class="flex justify-around">
+                <div>
+                    <p class="text-sm text-gray-500">正在叫号</p>
+                    <p id="now-calling" class="text-3xl font-bold text-indigo-600">-</p>
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500">等待桌数</p>
+                    <p id="waiting-count" class="text-3xl font-bold text-amber-500">0</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 我的排队信息 -->
+        <div id="my-ticket-info" class="hidden bg-indigo-50 border border-indigo-200 rounded-xl p-6 mb-8">
+            <h2 class="text-lg font-semibold text-indigo-800 mb-4">我的排队信息</h2>
+            <p class="text-sm text-gray-600">您的号码</p>
+            <p id="my-ticket-number" class="text-5xl font-extrabold text-indigo-700 my-2">-</p>
+            <p id="my-ticket-status" class="text-lg font-medium text-gray-700">-</p>
+            <button onclick="clearTicket()" class="mt-4 text-sm text-gray-500 hover:text-red-600 transition">清除我的号码</button>
+        </div>
+
+        <!-- 取号区域 -->
+        <div id="take-ticket-section">
+            <label for="party-size" class="block text-md font-medium text-gray-700 mb-2">请输入就餐人数</label>
+            <input type="number" id="party-size" min="1" class="w-full px-4 py-3 text-center text-lg border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500" placeholder="例如: 4">
+            <button id="take-ticket-btn" onclick="takeTicket()" class="btn w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg mt-4 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                立即取号
+            </button>
+        </div>
+
+        <!-- 消息提示 -->
+        <div id="message-box" class="mt-4 text-sm font-medium"></div>
+    </div>
+
+<script>
+    const myTicketInfoEl = document.getElementById('my-ticket-info');
+    const myTicketNumberEl = document.getElementById('my-ticket-number');
+    const myTicketStatusEl = document.getElementById('my-ticket-status');
+    const takeTicketSectionEl = document.getElementById('take-ticket-section');
+    const messageBoxEl = document.getElementById('message-box');
+    const nowCallingEl = document.getElementById('now-calling');
+    const waitingCountEl = document.getElementById('waiting-count');
+    const partySizeInput = document.getElementById('party-size');
+
+    let myTicket = localStorage.getItem('myTicketNumber');
+
+    // 更新排队信息
+    async function fetchQueueStatus() {
+        try {
+            const response = await fetch('/api/queue');
+            const data = await response.json();
+
+            // 更新叫号
+            if (data.called.length > 0) {
+                nowCallingEl.textContent = data.called.map(t => t.ticket_number).join(', ');
+            } else {
+                nowCallingEl.textContent = '-';
+            }
+            // 更新等待人数
+            waitingCountEl.textContent = data.total_waiting;
+
+            // 如果用户有票号，更新个人状态
+            if (myTicket) {
+                const ticketNumber = parseInt(myTicket, 10);
+                const allTickets = [...data.waiting, ...data.called];
+                const myTicketData = allTickets.find(t => t.ticket_number === ticketNumber);
+
+                if (myTicketData) {
+                    showMyTicketInfo(ticketNumber, myTicketData.status, data.waiting);
+                } else {
+                    // 票号可能已入座或被清除
+                    showMessage('您的号码已处理完毕或已失效。', 'info');
+                    clearTicket();
+                }
+            }
+        } catch (error) {
+            console.error('获取排队信息失败:', error);
+        }
+    }
+
+    // 显示我的排队信息
+    function showMyTicketInfo(ticketNumber, status, waitingList) {
+        myTicket = ticketNumber;
+        localStorage.setItem('myTicketNumber', ticketNumber);
+
+        myTicketNumberEl.textContent = ticketNumber;
+        takeTicketSectionEl.classList.add('hidden');
+        myTicketInfoEl.classList.remove('hidden');
+
+        if (status === 'waiting') {
+            const position = waitingList.findIndex(t => t.ticket_number === ticketNumber) + 1;
+            myTicketStatusEl.innerHTML = `状态: <span class="font-bold text-amber-600">正在排队</span><br>前方还有 <span class="text-2xl font-bold">${position > 0 ? position - 1 : 0}</span> 桌`;
+        } else if (status === 'called') {
+            myTicketStatusEl.innerHTML = `状态: <span class="font-bold text-green-600 animate-pulse">请您就餐！</span><br>已为您保留座位`;
+        }
+    }
+
+    // 取号
+    async function takeTicket() {
+        const partySize = partySizeInput.value;
+        if (!partySize || partySize < 1) {
+            showMessage('请输入有效的就餐人数！', 'error');
+            return;
+        }
+
+        const btn = document.getElementById('take-ticket-btn');
+        btn.disabled = true;
+        btn.textContent = '正在取号...';
+
+        try {
+            const response = await fetch('/api/take_ticket', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ party_size: partySize })
+            });
+            const data = await response.json();
+            if (data.success) {
+                showMessage(data.message, 'success');
+                // 立即刷新一次状态以显示新票号信息
+                await fetchQueueStatus();
+                showMyTicketInfo(data.ticket_number, 'waiting', []); // 预显示
+            } else {
+                showMessage(data.message, 'error');
+            }
+        } catch (error) {
+            showMessage('网络错误，取号失败。', 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '立即取号';
+        }
+    }
+
+    // 清除本地票号
+    function clearTicket() {
+        localStorage.removeItem('myTicketNumber');
+        myTicket = null;
+        myTicketInfoEl.classList.add('hidden');
+        takeTicketSectionEl.classList.remove('hidden');
+        partySizeInput.value = '';
+    }
+
+    // 显示消息
+    function showMessage(msg, type) {
+        messageBoxEl.textContent = msg;
+        messageBoxEl.className = 'mt-4 text-sm font-medium'; // Reset classes
+        if (type === 'success') {
+            messageBoxEl.classList.add('text-green-600');
+        } else if (type === 'error') {
+            messageBoxEl.classList.add('text-red-600');
+        } else {
+            messageBoxEl.classList.add('text-gray-600');
+        }
+        setTimeout(() => { messageBoxEl.textContent = ''; }, 4000);
+    }
+
+    // 页面加载时初始化并开始轮询
+    document.addEventListener('DOMContentLoaded', () => {
+        fetchQueueStatus();
+        setInterval(fetchQueueStatus, 3000); // 每3秒刷新一次
+    });
+
+</script>
+</body>
+</html>
