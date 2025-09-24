@@ -1,19 +1,16 @@
 # This file tells Render.com how to build and run your web service.
-# If this file is present in your repository, Render will automatically configure the service.
 
 services:
-  # A unique name for your service
   - name: restaurant-queue-system
-    # The type of service. 'web' means it's a web server.
     type: web
-    # The runtime environment
     env: python
-    # The command to install dependencies.
+    plan: free # 使用免费套餐
     buildCommand: "pip install -r requirements.txt"
-    # The command to start the web server.
-    # We use Gunicorn, a production-ready WSGI server.
-    # It will run the 'app' object from the 'app.py' file.
-    # $PORT is an environment variable provided by Render.
     startCommand: "gunicorn --workers 4 --bind 0.0.0.0:$PORT app:app"
-    # Specifies the plan for this service (e.g., free tier).
-    plan: free
+    
+    # !!! 关键改动: 添加持久化磁盘配置 !!!
+    disks:
+      - name: sqlite-data # 磁盘名称
+        mountPath: /app/src/data # 挂载点 (项目根目录下的 data 文件夹)
+        sizeGB: 1 # 磁盘大小 (1GB 足够了)
+
