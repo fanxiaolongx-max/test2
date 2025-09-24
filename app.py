@@ -1,16 +1,20 @@
 import sqlite3
 import hashlib
 import os
-from flask import Flask, render_template, request, jsonify, redirect, url_for, session, g
+import secrets
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session, g, abort
+from werkzeug.security import generate_password_hash, check_password_hash
 
 # ------------------- 配置 -------------------
-ADMIN_USERNAME = 'admin'
-ADMIN_PASSWORD = 'password123'
+# 从环境变量读取配置，提供开发默认值（不建议在生产使用默认值）
+ADMIN_USERNAME = os.getenv('ADMIN_USERNAME', 'admin')
+ADMIN_PASSWORD_HASH = os.getenv('ADMIN_PASSWORD_HASH')
+ADMIN_PASSWORD = os.getenv('ADMIN_PASSWORD', 'password123')  # 仅用于开发，生产请提供 ADMIN_PASSWORD_HASH
 
 DATA_DIR = 'data'
 DATABASE_FILE = os.path.join(DATA_DIR, 'database.db')
 
-SECRET_KEY = 'your_very_secret_key_change_it_for_security'
+SECRET_KEY = os.getenv('SECRET_KEY') or secrets.token_hex(32)
 
 # 多语言配置
 SUPPORTED_LANGS = {'en', 'ar'}
@@ -178,7 +182,18 @@ TRANSLATIONS = {
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
 
-PASSWORD_HASH = hashlib.sha256(ADMIN_PASSWORD.encode('utf-8')).hexdigest()
+# Cookie 安全标志
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = os.getenv('SESSION_COOKIE_SAMESITE', 'Lax')
+if os.getenv('SESSION_COOKIE_SECURE', 'false').lower() in ('1', 'true', 'yes'):
+    app.config['SESSION_COOKIE_SECURE'] = True
+
+# 管理员密码哈希（优先使用环境变量提供的哈希），否则从明文生成仅用于开发
+# 为了兼容某些 Python 构建缺少 hashlib.scrypt 的环境，默认使用 pbkdf2:sha256
+# 可通过环境变量 ADMIN_PASSWORD_METHOD 覆盖（例如：pbkdf2:sha256, scrypt, pbkdf2:sha512）
+if not ADMIN_PASSWORD_HASH:
+    method = os.getenv('ADMIN_PASSWORD_METHOD', 'pbkdf2:sha256')
+    ADMIN_PASSWORD_HASH = generate_password_hash(ADMIN_PASSWORD, method=method)
 
 
 def get_db_connection():
@@ -207,6 +222,16 @@ def init_db():
                 value TEXT
             )
         ''')
+        # 独立发号序列表，避免 MAX+1 竞争
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS queue_seq (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                current INTEGER NOT NULL
+            )
+        ''')
+        # 初始化序列行
+        cursor.execute("INSERT OR IGNORE INTO queue_seq (id, current) VALUES (1, 0)")
+
         # 检查并插入默认设置
         default_settings = {
             'restaurant_name': 'My Restaurant',
@@ -264,12 +289,19 @@ def _inject_i18n_and_settings():
         args['lang'] = lang_code
         return f"{request.path}?{urlencode(args)}"
 
+    # 注入 CSRF token 供模板使用
+    csrf_token = session.get('csrf_token')
+    if not csrf_token:
+        csrf_token = secrets.token_hex(16)
+        session['csrf_token'] = csrf_token
+
     return dict(
-        t=getattr(g, 't', lambda key, **kwargs: key),  # 从 g 对象获取 t 函数
+        t=getattr(g, 't', lambda key, **kwargs: key),
         lang=getattr(g, 'lang', DEFAULT_LANG),
         dir=getattr(g, 'dir', 'ltr'),
         switch_lang_url=switch_lang_url,
-        settings=getattr(g, 'settings', {})
+        settings=getattr(g, 'settings', {}),
+        csrf_token=csrf_token
     )
 
 
@@ -293,20 +325,27 @@ def get_queue_status():
 
 @app.route('/api/take_ticket', methods=['POST'])
 def take_ticket():
-    data = request.get_json()
+    data = request.get_json() or {}
     party_size = data.get('party_size')
 
     if not party_size or not str(party_size).isdigit() or int(party_size) <= 0:
         return jsonify({'success': False, 'message': g.t('invalid_party_size')}), 400
 
     conn = get_db_connection()
-    last_ticket = conn.execute('SELECT MAX(ticket_number) as max_ticket FROM queue').fetchone()
-    new_ticket_number = (last_ticket['max_ticket'] or 0) + 1
-
-    conn.execute('INSERT INTO queue (ticket_number, party_size) VALUES (?, ?)',
-                 (new_ticket_number, party_size))
-    conn.commit()
-    conn.close()
+    try:
+        # 使用事务 + IMMEDIATE 锁，避免并发冲突
+        conn.execute('BEGIN IMMEDIATE')
+        row = conn.execute('SELECT current FROM queue_seq WHERE id = 1').fetchone()
+        current = row['current'] if row else 0
+        new_ticket_number = current + 1
+        conn.execute('UPDATE queue_seq SET current = ? WHERE id = 1', (new_ticket_number,))
+        conn.execute('INSERT INTO queue (ticket_number, party_size) VALUES (?, ?)', (new_ticket_number, party_size))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        return jsonify({'success': False, 'message': g.t('op_failed_try_again')}), 500
+    finally:
+        conn.close()
 
     return jsonify({
         'success': True,
@@ -319,8 +358,11 @@ def take_ticket():
 def update_ticket_status(ticket_id):
     if 'logged_in' not in session:
         return jsonify({'success': False, 'message': g.t('unauthorized')}), 401
+    # CSRF 验证
+    if request.headers.get('X-CSRF-Token') != session.get('csrf_token'):
+        return jsonify({'success': False, 'message': 'CSRF failed'}), 403
 
-    data = request.get_json()
+    data = request.get_json() or {}
     new_status = data.get('status')
 
     if new_status not in ['called', 'seated', 'cancelled', 'waiting']:
@@ -338,12 +380,18 @@ def update_ticket_status(ticket_id):
 def reset_queue():
     if 'logged_in' not in session:
         return jsonify({'success': False, 'message': g.t('unauthorized')}), 401
+    if request.headers.get('X-CSRF-Token') != session.get('csrf_token'):
+        return jsonify({'success': False, 'message': 'CSRF failed'}), 403
 
     conn = get_db_connection()
-    conn.execute('DELETE FROM queue')
-    conn.execute("UPDATE sqlite_sequence SET seq = 0 WHERE name = 'queue'")
-    conn.commit()
-    conn.close()
+    try:
+        conn.execute('BEGIN IMMEDIATE')
+        conn.execute('DELETE FROM queue')
+        conn.execute("UPDATE sqlite_sequence SET seq = 0 WHERE name = 'queue'")
+        conn.execute('UPDATE queue_seq SET current = 0 WHERE id = 1')
+        conn.commit()
+    finally:
+        conn.close()
 
     return jsonify({'success': True, 'message': 'Queue has been reset'})
 
@@ -353,8 +401,10 @@ def update_settings():
     """管理员更新设置"""
     if 'logged_in' not in session:
         return jsonify({'success': False, 'message': g.t('unauthorized')}), 401
+    if request.headers.get('X-CSRF-Token') != session.get('csrf_token'):
+        return jsonify({'success': False, 'message': 'CSRF failed'}), 403
 
-    data = request.get_json()
+    data = request.get_json() or {}
     allowed_keys = ['restaurant_name', 'welcome_message', 'display_header_message']
 
     conn = get_db_connection()
@@ -381,16 +431,26 @@ def display_page():
 
 @app.route('/admin', methods=['GET', 'POST'])
 def admin_page():
+    # 简单的登录限速：每个会话最多连续 5 次失败
+    session.setdefault('login_failures', 0)
+
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+        # CSRF 验证
+        if request.form.get('csrf_token') != session.get('csrf_token'):
+            return render_template('admin.html', error='CSRF failed', logged_in=False)
 
-        hashed_password_attempt = hashlib.sha256(password.encode('utf-8')).hexdigest()
+        if session['login_failures'] >= 5:
+            return render_template('admin.html', error='Too many attempts. Try later.', logged_in=False)
 
-        if username == ADMIN_USERNAME and hashed_password_attempt == PASSWORD_HASH:
+        username = request.form.get('username', '')
+        password = request.form.get('password', '')
+
+        if username == ADMIN_USERNAME and check_password_hash(ADMIN_PASSWORD_HASH, password):
             session['logged_in'] = True
+            session['login_failures'] = 0
             return redirect(url_for('admin_page'))
         else:
+            session['login_failures'] += 1
             return render_template('admin.html', error=g.t('login_error'), logged_in=False)
 
     if 'logged_in' in session:
@@ -406,7 +466,20 @@ def logout():
     return redirect(url_for('admin_page'))
 
 
+# ------------------- 错误处理 -------------------
+@app.errorhandler(404)
+def handle_404(e):
+    if request.path.startswith('/api/'):
+        return jsonify({'success': False, 'error': 'Not Found'}), 404
+    return render_template('customer.html'), 404
+
+@app.errorhandler(500)
+def handle_500(e):
+    if request.path.startswith('/api/'):
+        return jsonify({'success': False, 'error': 'Internal Server Error'}), 500
+    return render_template('customer.html'), 500
+
 # ------------------- 启动程序 -------------------
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5091)
+    app.run(debug=False, host='0.0.0.0', port=5091)
 
